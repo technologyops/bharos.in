@@ -190,104 +190,28 @@
         <div class="tab-content">
             <div id="verify" class="tab-panel active">
                 <div class="input-group">
-                    <input type="file" id="verifyFile" onchange="onVerify(this)" style="display: none;">
+                    <input type="file" id="verifyFile" onchange="onVerify(this)" accept=".pass, *" style="display: none;">
                     <label for="verifyFile">Select file to Verify</label>
                 </div>
                 <div id="verifyResult" class="result"></div>
             </div>
 
             <div id="sign" class="tab-panel">
-                <div class="input-group" id="signFileGroup" style="display: none;">
+                <!--div class="input-group" id="signFileGroup" style="display: none;"-->
+                <div class="input-group" id="signFileGroup">
                     <input type="file" id="signFile" onchange="onSign(this)" style="display: none;">
                     <label for="signFile">Select file to Sign</label>
                 </div>
                 <label for="secretKey">secret Key (keep secret :)</label>
-                <textarea id="secretKey" placeholder="Enter secretKey..." onkeyup="onSecretKey(this)"></textarea>
+                <textarea id="secretKey" placeholder="Enter secretKey..." onkeyup="onSecretKey(this)">RUVGBFFZBYOZ6QACCLIUYUMMQ2FORMQ3U4PGR7E6NRDUOWOEDKHA</textarea>
                 <div id="signResult" class="result"></div>
             </div>
         </div>
     </div>
 
-<script type="importmap">
-{
-  "imports": {
-    "@noble/": "https://esm.sh/@noble/"
-  }
-}
-</script>
     <script type="module">
-        import * as ed from '@noble/ed25519';
-        import { sha512 } from '@noble/hashes/sha2.js';
-        ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
-        // Load the ed25519 library
-        const ed25519 = ed;
-
-        // Utility functions for hex conversion
-        function bytesToHex(bytes) {
-            return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
-        }
-
-        function hexToBytes(hex) {
-            const bytes = new Uint8Array(hex.length / 2);
-            for (let i = 0; i < hex.length; i += 2) {
-                bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
-            }
-            return bytes;
-        }
-
-        // Base32 encoding/decoding functions
-        const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-
-        function bytesToB32(buffer) {
-            const bytes = new Uint8Array(buffer);
-            let result = '';
-            let bits = 0;
-            let value = 0;
-
-            for (let i = 0; i < bytes.length; i++) {
-                value = (value << 8) | bytes[i];
-                bits += 8;
-
-                while (bits >= 5) {
-                    result += BASE32_ALPHABET[(value >>> (bits - 5)) & 31];
-                    bits -= 5;
-                }
-            }
-
-            if (bits > 0) {
-                result += BASE32_ALPHABET[(value << (5 - bits)) & 31];
-            }
-
-            // Add padding, as needed
-            //while (result.length % 8 !== 0) { result += '='; }
-
-            return result;
-        }
-
-        function b32ToBytes(str) {
-            str = str.toUpperCase().replace(/=+$/, ''); //remove padding
-            let bits = 0;
-            let value = 0;
-            let output = [];
-
-            for (let i = 0; i < str.length; i++) {
-                const char = str[i];
-                const index = BASE32_ALPHABET.indexOf(char);
-                if (index === -1) {
-                    throw new Error(`Invalid Base32 character: ${char}`);
-                }
-
-                value = (value << 5) | index;
-                bits += 5;
-
-                if (bits >= 8) {
-                    output.push((value >>> (bits - 8)) & 255);
-                    bits -= 8;
-                }
-            }
-
-            return new Uint8Array(output);
-        }
+        import * as pass from './pass.js';
+        window.pass = pass;
 
         var saveData = (function () {
             var a = document.createElement("a");
@@ -316,42 +240,32 @@
        //document.getElementById('verifyFile').addEventListener("change", )
        async function onVerify(el) {
          let f = el.files[0];
-         if (f.name.length >= 156) {
-           let pass = b32ToBytes(f.name.slice(0,156));
-           try {
-              const content = await f.arrayBuffer();
-              let messageBytes = sha512(new Uint8Array(content));
-              // Verify the signature
-              const isValid = await ed25519.verify(pass.slice(33,97), messageBytes, pass.slice(1,33));
-              if (isValid) {
-                showResult('verifyResult', `✅ Signature is VALID`);
-                el.value = ''; // clear the selected file
-                return;
-              }
-           } catch (error) {
-              console.error("Error reading file:", error);
-           }
+         try {
+            const isValid = await pass.verifile(f.name, new Uint8Array(await f.arrayBuffer()));
+            if (isValid) {
+              showResult('verifyResult', '✅ PASS' + f.name);
+              el.value = ''; // clear the selected file
+              return;
+            }
+         } catch (error) {
+            console.error("Error reading file:", error);
          }
          el.value = ''; // clear the selected file
-         showResult('verifyResult', `❌ Signature is INVALID`, true);
+         showResult('verifyResult', '❌ FAIL' + f.name, true);
        }
 
        //document.getElementById('signFile').addEventListener("change", async )
        async function onSign(el) {
          let secretKey = document.getElementById('secretKey').value.trim();
          if (secretKey.length == 52) {
-           secretKey = b32ToBytes(secretKey);
            let f = el.files[0];
            try {
               const content = await f.arrayBuffer();
-              let messageBytes = sha512(new Uint8Array(content));
-              const signatureBytes = await ed25519.sign(messageBytes, secretKey);
-              const publicKey = await ed25519.getPublicKey(secretKey);
-              const fileName = bytesToB32(Uint8Array.from([0, ...publicKey, ...signatureBytes])) + '-' + f.name;
-              saveData(content, fileName);
-              showResult('signResult', fileName);
+              const passContent = await pass.signfile(new Uint8Array(content), secretKey, true);
+              saveData(passContent, f.name+'.pass');
+              //showResult('signResult', fileName);
           } catch (error) {
-              console.error("Error reading file:", error);
+              console.error("Error file:", error);
           }
         }
         el.value = ''; // clear the selected file
