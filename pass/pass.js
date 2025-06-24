@@ -626,7 +626,7 @@ function istxt(content, scanlen=24) {
   return false;
 }
 
-const verify2 = async (fname, msg) => {
+const verifile = async (fname, msg) => {
   let _istxt = istxt(msg);
   if (_istxt) {
     if (msg.length < 156) return false;
@@ -662,7 +662,7 @@ const verify2 = async (fname, msg) => {
   return hashFinishA(_verify(s, m, p, veriOpts));
 };
 
-const signAsync2 = async (msg, privKey, prefixpass=false) => {
+const signfile = async (msg, privKey, prefixpass=false) => {
   if (privKey.length == 52) {
     privKey = b32ToBytes(privKey);
   }
@@ -684,4 +684,4 @@ const signAsync2 = async (msg, privKey, prefixpass=false) => {
 };
 
 const genKey = utils.randomPrivateKey;
-export { genKey, getPublicKey, signAsync2 as signfile, verify2 as verifile, bytesToB32, b32ToBytes}
+export { genKey, getPublicKey, signfile, verifile, bytesToB32, b32ToBytes}
