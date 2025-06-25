@@ -366,7 +366,7 @@ const saveDataToFile = (function () {
 
 class Alert {
   constructor() {
-    this.el = el('m-alert', {dismissible:false, icon:'priority', type:'info'}, 'PASS (Personal Authentic Software System');
+    this.el = el('m-alert', {dismissible:false, icon:'priority', type:'info'}, 'PASS (Personal Authentic Software System)');
   }
   update(data,typ='success') {
     //info, success, warn, error
@@ -380,30 +380,16 @@ class Alert {
   }
 }
 
-/*
-How is this different from existing digital signatures?
-Current systems rely on centralized certificate authorities. truePASS eliminates these middlemen - you directly choose who to trust without platform gatekeepers controlling access.
-
-How long are the signatures valid?
-Documents remain verifiable forever.
-
-Is this proprietary?
-Nope - it's based on proven cryptographic algorithms.
-
-Whats the format?
-PASS-Base32(<version-byte=0><publicKey><signature>)-...
-
-*/
 class App {
   constructor() {
     this.el = el('m-container', el('m-box', [
       el('h1', 'PASS :)'),
       this.status = new Alert(),
-      this.select = el('select', {onchange:this.onSelect.bind(this)}, [
-        el('option', {value:'verifile'}, 'Verifile'),
-        el('option', {value:'passfile'}, 'Passfile'),
-      ]),
-      el('m-box',
+      el('m-box', [
+        el('fieldset', this.select = el('select', {onchange:this.onSelect.bind(this)}, [
+          el('option', {value:'verifile'}, 'Verifile'),
+          el('option', {value:'passfile'}, 'Passfile'),
+        ])),
         this.sk = el('fieldset', {style:'display:none;'}, [
           el('m-icon', {name:'key', ondblclick:this.onKey.bind(this)}),
           el('label', {for:'secretKey'}, 'secret Key (protect this - do not share. dblclick icon to generate a new key.)'),
@@ -415,13 +401,31 @@ class App {
             el('option', {value:2}, '.pass extension'),
             el('option', {value:0}, 'prefix content'),
           ]),
-
-        ])),
-      this.file = el('input', {type:'file', onchange:this.onFile.bind(this)}),
+        ]),
+        this.file = el('input', {type:'file', onchange:this.onFile.bind(this)}),
+      ]),
+      el('m-accordion.pad-sm', [
+        el('h3', 'FAQ'),
+        el('details', [
+          el('summary', 'How can content become tamperproof?'),
+          el('p', 'easy, with PASS protection.')]),
+        el('details', [
+          el('summary', 'How is this different from existing digital signatures?'),
+          el('p', 'Current systems rely on centralized certificate authorities. PASS eliminates these middlemen - you directly choose who to trust without platform gatekeepers controlling access.')]),
+        el('details', [
+          el('summary', 'How long are the signatures valid?'),
+          el('p', 'Documents remain verifiable forever.')]),
+        el('details', [
+          el('summary', 'Is this proprietary?'),
+          el('p', 'Nope - it\'s based on proven cryptographic Ed25519 algorithms.')]),
+        el('details', [
+          el('summary', 'What\'s the format?'),
+          el('p', 'PASS-Base32(<version-byte=0><publicKey><signature>)-...')]),
+        el('details', [
+          el('summary', 'who\'s using this?'),
+          el('p', 'BharOS: decentralized serverless software updates.')]),
+      ])
     ]));
-  }
-  onKey() {
-    this.secretKey.value = pass.Base32.encode(pass.genKey());
   }
   onSelect(evt) {
     if ('passfile' == this.select.value) {
@@ -429,6 +433,9 @@ class App {
     } else {
       this.sk.style.display = 'none';
     }
+  }
+  onKey() {
+    this.secretKey.value = pass.Base32.encode(pass.genKey());
   }
   async onFile(evt) {
     let f = this.file.files[0];
