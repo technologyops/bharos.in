@@ -552,12 +552,15 @@ class App {
       ]),
       this.file = el('input', {type:'file', onchange:this.onFile.bind(this)}),
       el('m-box',
-        this.sk = el('fieldset', {style:'display:none;', open:true}, [
-          el('m-icon', {name:'key'}),
-          el('label', {for:'secretKey'}, 'secret Key (this is your digital identity - do not share it, protect it.)'),
-          this.secretKey = el('textarea#secretKey', 'RUVGBFFZBYOZ6QACCLIUYUMMQ2FORMQ3U4PGR7E6NRDUOWOEDKHA')
+        this.sk = el('fieldset', {style:'display:none;'}, [
+          el('m-icon', {name:'key', ondblclick:this.onKey.bind(this)}),
+          el('label', {for:'secretKey'}, 'secret Key (protect this - do not share. dblclick icon to generate a new key.)'),
+          this.secretKey = el('textarea#secretKey')
         ])),
     ]));
+  }
+  onKey() {
+    this.secretKey.value = pass.Base32.encode(pass.genKey());
   }
   onSelect(evt) {
     if ('passfile' == this.select.value) {
@@ -577,8 +580,11 @@ class App {
           this.status.update(f.name+'.pass', 'success');
           saveDataToFile(passContent, f.name+'.pass');
         } catch (error) {
-          console.error(error);
+          //console.error(error);
+          this.status.update(error, 'error');
         }
+      } else {
+        this.status.update('invalid secret Key', 'error');
       }
     } else {
       let fname = (f.name.length > 156) ? f.name.substring(f.name.lastIndexOf("-") + 1) : f.name;
@@ -590,6 +596,7 @@ class App {
         isValid = await pass.verifile(f.name, new Uint8Array(await f.arrayBuffer()));
       } catch (error) {
         console.error(error);
+        this.status.update(error, 'error');
       }
       if (isValid) {
         this.status.update(fname, 'success');
@@ -597,7 +604,7 @@ class App {
         this.status.update(fname, 'error');
       }
     }
-    //this.file.value = ''; //clear the selected file
+    this.file.value = ''; //clear the selected file
   }
 }
 const app = new App();
