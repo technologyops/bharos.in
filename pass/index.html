@@ -335,8 +335,6 @@ if (typeof module !== 'undefined' && module.exports) {
 </script>
 <script>
 const { el, mount } = redom;
-//console.log(pass.version);
-//console.log(pass.env());
 
 class Tabs {
   constructor() {
@@ -402,9 +400,9 @@ class App {
             el('option', {value:0}, 'prefix content'),
           ]),
         ]),
-        this.file = el('input', {type:'file', onchange:this.onFile.bind(this)}),
+        this.file = el('fieldset', el('input', {type:'file', onchange:this.onFile.bind(this)})),
       ]),
-      el('m-accordion.pad-sm', [
+      /*el('m-accordion.pad-sm', [
         el('h3', 'FAQ'),
         el('details', [
           el('summary', 'How can content become tamperproof?'),
@@ -424,7 +422,7 @@ class App {
         el('details', [
           el('summary', 'who\'s using this?'),
           el('p', 'BharOS: decentralized serverless software updates.')]),
-      ])
+      ])*/
     ]));
   }
   onSelect(evt) {
