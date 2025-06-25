@@ -574,8 +574,8 @@ class App {
         try {
           const content = await f.arrayBuffer();
           const passContent = await pass.passfile(new Uint8Array(content), secretKey, true);
+          this.status.update(f.name+'.pass', 'success');
           saveDataToFile(passContent, f.name+'.pass');
-          this.status.update(f.name+'.pass saved.', 'success');
         } catch (error) {
           console.error(error);
         }
