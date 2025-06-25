@@ -242,13 +242,27 @@
     const isValid = await ed25519.verifyAsync(signature, message, pubKey);
     console.log(isValid);
   };
+  //await test_ed25519();
 
   const Hex = {encode: ed25519.bytesToHex, decode:ed25519.hexToBytes}
 
   const verifile = async (fname, msg) => {
     let _istxt = istxt(msg);
     let p,s,m
-    if (('-' == fname) || fname.endsWith('.pass')) {
+
+    //format PASS-<156 b32>-xxx
+    if (fname.length > 162) {
+      //PASS-filename
+      let passhdr
+      try {
+        passhdr = Base32.decode(fname.slice(5,161));
+      } catch (error) {
+        return false;
+      }
+      p = passhdr.slice(1,33);
+      s = passhdr.slice(33,97);
+    } else {
+      //pass-prefix
       if (_istxt) {
         if (msg.length < 156) return false;
         const txtdecoder = new TextDecoder('utf-8');
@@ -262,19 +276,8 @@
         s = msg.slice(33,97);
         msg = msg.slice(97);
       }
-    } else {
-      //fname format pass-<156 b32>-xxx
-      if (fname.length < 162) { return false; }
-      let passhdr
-      try {
-        passhdr = Base32.decode(fname.slice(5,161));
-      }
-      catch (error) {
-        return false;
-      }
-      p = passhdr.slice(1,33);
-      s = passhdr.slice(33,97);
     }
+
     m = await ed25519.sha512Async(msg);
     return ed25519.verifyAsync(s, m, p);
   };
@@ -329,169 +332,6 @@ if (typeof module !== 'undefined' && module.exports) {
   //module.exports.makeRequest = module.exports.makeRequest;
   module.exports.pass = module.exports.pass;
 }
-
-async function nodeMain(pass) {
-  if (1 == process.argv.length) { return }; //imported as module
-  const USAGE = `usage: pass <test|key|passfile|verifile|b32|hex>
-  b32 [decode] stdin
-  hex [decode] stdin
-  key <gen|hex|b32> <format=raw|hex|b32>
-  passfile <secretKey> <filename - stdin>
-  verifile <pass-filename - stdin> [txt]
-`;
-  if (process.argv.length < 3) {
-    process.stderr.write(USAGE);
-    process.exit(1);
-  }
-
-  const fs = require("fs");
-  const path = require('path');
-  const crypto = require('crypto');
-  const readStream = async (filePath='-')=>{
-    return new Promise((resolve, reject) => {
-      const chunks = [];
-      const stream = ('-' == filePath) ? process.stdin : fs.createReadStream(filePath);
-      stream.on('data', (chunk) => { chunks.push(chunk); });
-      stream.on('end', () => { resolve(Buffer.concat(chunks)); });
-      stream.on('error', (err) => { reject(err); });
-    });
-  };
-
-  const isDecode = ((process.argv.length > 3) && (process.argv[3] == 'd'));
-  let stdin = [];
-  switch (process.argv[2]) {
-    case 'b32':
-      stdin = await readStream();
-      if (isDecode) {
-        process.stdout.write(pass.Base32.decode(stdin.toString()));
-      } else {
-        process.stdout.write(pass.Base32.encode(stdin));
-      };
-      break;
-    case 'hex':
-      stdin = await readStream();
-      if (isDecode) {
-        process.stdout.write(pass.Hex.decode(stdin.toString()));
-      } else {
-        process.stdout.write(pass.Hex.encode(stdin));
-      };
-      break;
-    case 'key':
-      if ((process.argv.length > 3) && (process.argv[3] == 'gen')) {
-        const sk = pass.genKey();
-        const pk = await pass.getPublicKeyAsync(sk);
-        if (process.argv.length > 4) {
-          switch (process.argv[4]) {
-            case 'b32':
-              process.stdout.write(pass.Base32.encode(sk));
-              process.stdout.write('\n');
-              process.stdout.write(pass.Base32.encode(pk));
-              process.stdout.write('\n');
-              break;
-            case 'hex':
-              process.stdout.write(pass.Hex.encode(sk));
-              process.stdout.write('\n');
-              process.stdout.write(pass.Hex.encode(pk));
-              process.stdout.write('\n');
-              break;
-          }
-        } else {
-          process.stdout.write(sk);
-        }
-      } else {
-        //print pubkey
-        stdin = await readStream();
-        if (52 == stdin.length) {
-          stdin = pass.Base32.decode(stdin.toString());
-        } else if (64 == stdin.length) {
-          stdin = pass.Hex.decode(stdin.toString());
-        } else if (32 != stdin.length) {
-          process.stderr.write('invalid key\n');
-          process.exit(1);
-        }
-        const pk = await pass.getPublicKeyAsync(stdin);
-        if (process.argv.length > 3) {
-          switch (process.argv[3]) {
-            case 'b32':
-              process.stdout.write(pass.Base32.encode(pk));
-              process.stdout.write('\n');
-              break;
-            case 'hex':
-              process.stdout.write(pass.Hex.encode(pk));
-              process.stdout.write('\n');
-              break;
-          }
-        } else {
-          process.stdout.write(pk);
-        }
-      }
-      break;
-    case 'passfile':
-      //<secrectKey> <filename>
-      if (process.argv.length < 5) {
-        process.stderr.write(USAGE);
-        process.exit(1);
-      }
-
-      let sk = process.argv[3];
-      if (52 == sk.length) {
-        sk = pass.Base32.decode(sk);
-      } else if (64 == sk.length) {
-        sk = pass.Hex.decode(sk);
-      } else {
-        //read-from-file
-        try {
-          sk = fs.readFileSync(sk);
-        } catch(ex) {
-          sk = '';
-        }
-        if (sk.length != 32) {
-          process.stderr.write('invalid key \n');
-          process.exit(1);
-        }
-      }
-      const content = await readStream(process.argv[4]);
-      //this interface needs to be re-thought for large files - as this one loads the who shebang
-      const passContent = await pass.passfile(content, sk, true);
-      let passhdr;
-      if (pass.istxt(content)) {
-        passhdr = 'pass-' + passContent.slice(0,156);
-      } else {
-        passhdr = 'pass-' + pass.Base32.encode(passContent.slice(0,97));
-      }
-      if ('-' == process.argv[4]) {
-        process.stdout.write(passContent);
-      } else {
-        let fqname = process.argv[4] + '.pass';
-        let fqpath = path.resolve(process.argv[4]);
-        if ((process.argv.length > 5) && ('pass' == process.argv[5])) {
-          fqname = path.dirname(fqpath) + path.sep + passhdr + '-' + path.basename(fqpath);
-        }
-        console.log(fqname);
-        const stream = fs.createWriteStream(fqname);
-        stream.write(passContent);
-        stream.close();
-      }
-      break;
-    case 'verifile':
-      //<filename> [txt]
-      if (process.argv.length < 4) {
-        process.stderr.write(USAGE);
-        process.exit(1);
-      }
-      //console.log((process.argv.length > 4) && (process.argv[4] == 'txt'));
-      let fqpath = process.argv[3];
-      if ('-' != fqpath) { fqpath = path.resolve(fqpath); }
-      let vdata = await readStream(fqpath);
-      //this interface needs to be re-thought for large files - as this one loads the who shebang
-      process.stdout.write((await pass.verifile(path.basename(fqpath), vdata)) + '\n');
-      break;
-    default:
-      process.stderr.write(USAGE);
-      process.exit(1);
-  }
-
-}
 </script>
 <script>
 const { el, mount } = redom;
@@ -540,23 +380,44 @@ class Alert {
   }
 }
 
+/*
+How is this different from existing digital signatures?
+Current systems rely on centralized certificate authorities. truePASS eliminates these middlemen - you directly choose who to trust without platform gatekeepers controlling access.
+
+How long are the signatures valid?
+Documents remain verifiable forever.
+
+Is this proprietary?
+Nope - it's based on proven cryptographic algorithms.
+
+Whats the format?
+PASS-Base32(<version-byte=0><publicKey><signature>)-...
+
+*/
 class App {
   constructor() {
     this.el = el('m-container', el('m-box', [
       el('h1', 'PASS :)'),
       this.status = new Alert(),
-      //this.btn = el('button', 'Do'),
       this.select = el('select', {onchange:this.onSelect.bind(this)}, [
         el('option', {value:'verifile'}, 'Verifile'),
         el('option', {value:'passfile'}, 'Passfile'),
       ]),
-      this.file = el('input', {type:'file', onchange:this.onFile.bind(this)}),
       el('m-box',
         this.sk = el('fieldset', {style:'display:none;'}, [
           el('m-icon', {name:'key', ondblclick:this.onKey.bind(this)}),
           el('label', {for:'secretKey'}, 'secret Key (protect this - do not share. dblclick icon to generate a new key.)'),
-          this.secretKey = el('textarea#secretKey')
+          this.secretKey = el('textarea#secretKey'),
+
+          el('label', {for:'download file format'}, 'format:'),
+          this.format = el('select', [
+            el('option', {value:1}, 'PASS-...- name'),
+            el('option', {value:2}, '.pass extension'),
+            el('option', {value:0}, 'prefix content'),
+          ]),
+
         ])),
+      this.file = el('input', {type:'file', onchange:this.onFile.bind(this)}),
     ]));
   }
   onKey() {
@@ -576,9 +437,18 @@ class App {
       if (secretKey.length == 52) {
         try {
           const content = await f.arrayBuffer();
-          const passContent = await pass.passfile(new Uint8Array(content), secretKey, true);
-          this.status.update(f.name+'.pass', 'success');
-          saveDataToFile(passContent, f.name+'.pass');
+          const passContent = await pass.passfile(new Uint8Array(content), secretKey, ('1' != this.format.value));
+          if ('1' == this.format.value) {
+            let fname = 'PASS-' + passContent + '-' + f.name;
+            this.status.update(fname, 'success');
+            saveDataToFile(content, fname);
+          } else if ('2' == this.format.value) {
+            this.status.update(f.name+'.pass', 'success');
+            saveDataToFile(passContent, f.name+'.pass');
+          } else {
+            this.status.update(f.name, 'success');
+            saveDataToFile(passContent, f.name);
+          }
         } catch (error) {
           //console.error(error);
           this.status.update(error, 'error');
@@ -587,16 +457,16 @@ class App {
         this.status.update('invalid secret Key', 'error');
       }
     } else {
-      let fname = (f.name.length > 156) ? f.name.substring(f.name.lastIndexOf("-") + 1) : f.name;
-      if (fname.endsWith('.pass')) {
-        fname = fname.slice(0,-5);
-      }
       let isValid = false;
       try {
         isValid = await pass.verifile(f.name, new Uint8Array(await f.arrayBuffer()));
       } catch (error) {
         console.error(error);
         this.status.update(error, 'error');
+      }
+      let fname = (f.name.length > 156) ? f.name.substring(f.name.lastIndexOf("-") + 1) : f.name;
+      if (fname.endsWith('.pass')) {
+        fname = fname.slice(0,-5);
       }
       if (isValid) {
         this.status.update(fname, 'success');
